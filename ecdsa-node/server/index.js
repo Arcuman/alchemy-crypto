@@ -1,14 +1,18 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const secp = require("ethereum-cryptography/secp256k1.js")
+const { utf8ToBytes } = require("ethereum-cryptography/utils")
+const { keccak256 } = require("ethereum-cryptography/keccak")
+
 const port = 3042;
 
 app.use(cors());
 app.use(express.json());
 
 
-//private key 1 - fb23143518690359118dc23345545cd3e5fa710f878c767eb697c059f0f5a8f5
-//private key 2 - e7ae45bd861236021e63a252e8c4611e1b6d1e2c9f8232f34f69c04c12903018
+//private key 1 - e7ae45bd861236021e63a252e8c4611e1b6d1e2c9f8232f34f69c04c12903018 
+//private key 2 - fb23143518690359118dc23345545cd3e5fa710f878c767eb697c059f0f5a8f5
 //private key 3 - 57b0252be52ba0bfcf22543d1b71717e71bd2f43b4c5b14d05804bcf9c46f4d0
 const balances = {
   "020643f26f62bc1a8b522434669641399e19a7d2dc84a7f604aef793107bc3b977": 100,
@@ -22,8 +26,27 @@ app.get("/balance/:address", (req, res) => {
   res.send({ balance });
 });
 
+const hashMessage = (message) => {
+  const bytes = utf8ToBytes(message);
+  const hash = keccak256(bytes);
+  return hash;
+};
+
 app.post("/send", (req, res) => {
-  const { sender, recipient, amount } = req.body;
+  const { sigStringed, data, sender } = req.body;
+  const { amount, recipient } = data
+
+  const signature = {
+    ...sigStringed,
+    r: BigInt(sigStringed.r),
+    s: BigInt(sigStringed.s)
+  }
+
+  const msg = JSON.stringify(data)
+  
+  const isValid = secp.secp256k1.verify(signature, hashMessage(msg), sender) === true;
+
+  if(!isValid) res.status(400).send({ message: "Bad signature!"});
 
   setInitialBalance(sender);
   setInitialBalance(recipient);
